@@ -59,6 +59,15 @@ body{background:var(--bg);color:var(--text);padding:8px;max-width:1200px;margin:
 }
 .ctrl-bar{display:flex;gap:6px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;}
 button{padding:5px 10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:4px;cursor:pointer;font-size:14px;}
+button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
+
+#shopFilterBar{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:center;
+  margin-bottom:8px;
+}
 
 #calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;touch-action:pan-y;}
 /*星期头部*/
@@ -121,6 +130,7 @@ button{padding:5px 10px;border:1px solid var(--border);background:var(--card);co
   .festival,.lunar-festival,.solar-term,.star-tag{font-size:9px;}
   .ev-badge{font-size:9px;min-width:12px;}
   .status-line{font-size:11px;}
+  #shopFilterBar button{font-size:12px;padding:3px 6px;}
 }
 </style>
 </head>
@@ -135,6 +145,7 @@ button{padding:5px 10px;border:1px solid var(--border);background:var(--card);co
   <button id="refresh">刷新数据</button>
   <button id="themeBtn">切换深色</button>
 </div>
+<div id="shopFilterBar"></div>
 
 <div class="status-line" id="lunarLoadStatus"></div>
 <div class="status-line" id="starStatus"></div>
@@ -177,7 +188,9 @@ const CACHE_TTL = 5 * 60 * 1000;
 
 let starDateMap = {};    // key:公历日期 -> value:星类型
 let starLunarMap = {};   // key:公历日期 -> value:农历显示文本（来自star.xlsx）
-let fullEventList = [];
+let fullOriginEventList = []; // 原始全部数据，用于筛选
+let fullEventList = [];       // 当前筛选后展示数据
+let currentShopFilter = null; // 当前选中门店 null=全部
 let loading = false;
 
 // ========== 农历中文映射（备用，若star.xlsx农历列是数字则用此转换）==========
@@ -316,10 +329,56 @@ function isCacheExpired(cacheObj){
   return Date.now() - cacheObj.updateTime > CACHE_TTL;
 }
 
+// 根据筛选门店过滤数据
+function applyShopFilter(){
+  if(currentShopFilter === null){
+    fullEventList = [...fullOriginEventList];
+  }else{
+    fullEventList = fullOriginEventList.filter(item=>item.shop === currentShopFilter);
+  }
+}
+
 function getMonthEventFromCache(y,m){
   const start = `${y}-${String(m).padStart(2,"0")}-01`;
   const end = `${y}-${String(m).padStart(2,"0")}-${new Date(y,m,0).getDate()}`;
   return fullEventList.filter(item => item.date >= start && item.date <= end);
+}
+
+// 动态渲染门店筛选按钮
+function renderShopFilterButtons(){
+  const bar = document.getElementById("shopFilterBar");
+  bar.innerHTML = "";
+  // 获取所有不重复门店，过滤空
+  const shopSet = new Set();
+  fullOriginEventList.forEach(i=>{
+    if(i.shop && String(i.shop).trim()!=='') shopSet.add(i.shop);
+  });
+  const shopList = Array.from(shopSet).sort();
+
+  // 全部按钮
+  const btnAll = document.createElement("button");
+  btnAll.textContent = "全部门店";
+  if(currentShopFilter===null) btnAll.classList.add("active");
+  btnAll.onclick = ()=>{
+    currentShopFilter = null;
+    applyShopFilter();
+    renderShopFilterButtons();
+    renderCalendar();
+  };
+  bar.appendChild(btnAll);
+
+  shopList.forEach(shopName=>{
+    const btn = document.createElement("button");
+    btn.textContent = shopName;
+    if(currentShopFilter === shopName) btn.classList.add("active");
+    btn.onclick = ()=>{
+      currentShopFilter = shopName;
+      applyShopFilter();
+      renderShopFilterButtons();
+      renderCalendar();
+    };
+    bar.appendChild(btn);
+  });
 }
 
 // ========== 星日期Excel（同时读取农历列）==========
@@ -405,6 +464,7 @@ async function loadFeishuJson(forceRefresh = false){
       return {
         date: item["宴会日期"] || "",
         hall: item["宴会厅"] || "",
+        shop: item["门店"] || "",
         customer: item["客户|宴会主题"] || "",
         table: item["桌数"] || "",
         sales: item["销售负责人"] || "",
@@ -412,15 +472,17 @@ async function loadFeishuJson(forceRefresh = false){
       }
     }).filter(item => !!item.date);
 
-    fullEventList = formatList;
-    saveEventCache(fullEventList);
+    fullOriginEventList = formatList;
+    applyShopFilter();
+    saveEventCache(fullOriginEventList);
     const time = new Date().toLocaleString();
     if(cacheInfo){
       cacheInfo.innerText = `缓存更新:${time}`;
       cacheInfo.style.color = "#0e9f6e";
     }
+    renderShopFilterButtons();
     renderCalendar();
-    if(loadStatus) loadStatus.innerText = `✅已同步全部宴席${fullEventList.length}条`;
+    if(loadStatus) loadStatus.innerText = `✅已同步全部宴席${fullOriginEventList.length}条`;
   }catch(err){
     if(!forceRefresh){
       if(loadStatus) loadStatus.innerText = "网络更新失败，继续使用本地缓存";
@@ -471,7 +533,9 @@ async function init(){
 
   const cache = readEventCache();
   if(cache && Array.isArray(cache.data)){
-    fullEventList = cache.data;
+    fullOriginEventList = cache.data;
+    applyShopFilter();
+    renderShopFilterButtons();
     const timeStr = new Date(cache.updateTime).toLocaleString();
     const cacheInfoEl = document.getElementById("cacheInfo");
     if(cacheInfoEl){
@@ -589,6 +653,7 @@ function clickDay(el, evList){
     evList.forEach(ev => {
       detailHtml += `
       <div class="detail-item">
+        <div>🏢门店：${ev.shop || "未填写"}</div>
         <div>🏨宴会厅：${ev.hall || "未填写"}</div>
         <div>👤客户|宴会主题：${ev.customer || "未填写"}</div>
         <div>🪑桌数：${ev.table || "未填写"}</div>
