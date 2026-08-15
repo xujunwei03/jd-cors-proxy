@@ -63,26 +63,59 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
 
 #shopFilterBar{
   display:flex;
-  gap:4px;
-  flex-wrap:wrap;
-  justify-content:center;
-  margin-bottom:6px;
-}
-#shopFilterBar button{
-  font-size:12px;
-  padding:3px 6px;
-}
-
-#hallFilterBar{
-  display:flex;
-  gap:3px;
+  gap:6px;
   flex-wrap:wrap;
   justify-content:center;
   margin-bottom:8px;
 }
-#hallFilterBar button{
-  font-size:11px;
-  padding:2px 5px;
+
+/* ========== 新增宴会厅多选下拉样式 ========== */
+.hall-filter-wrap{
+  position:relative;
+  display:inline-block;
+  margin:0 4px 8px;
+}
+#hallSelectBtn{
+  padding:5px 10px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
+  border-radius:4px;
+  cursor:pointer;
+  font-size:14px;
+  min-width:140px;
+}
+.hall-dropdown{
+  position:absolute;
+  top:100%;
+  left:0;
+  z-index:99;
+  border:1px solid var(--border);
+  background:var(--bg);
+  max-height:260px;
+  overflow-y:auto;
+  min-width:220px;
+  border-radius:4px;
+  display:none;
+}
+.hall-dropdown.show{
+  display:block;
+}
+.hall-item{
+  padding:4px 8px;
+  font-size:13px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.hall-item:hover{
+  background:var(--card);
+}
+.hall-empty-text{
+  font-size:10px;
+  color:#888;
+  line-height:1.1;
 }
 
 #calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;touch-action:pan-y;}
@@ -146,8 +179,9 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   .festival,.lunar-festival,.solar-term,.star-tag{font-size:9px;}
   .ev-badge{font-size:9px;min-width:12px;}
   .status-line{font-size:11px;}
-  #shopFilterBar button{font-size:11px;padding:2px 5px;}
-  #hallFilterBar button{font-size:10px;padding:2px 4px;}
+  #shopFilterBar button{font-size:12px;padding:3px 6px;}
+  .hall-dropdown{min-width:180px;}
+  .hall-empty-text{font-size:9px;}
 }
 </style>
 </head>
@@ -163,7 +197,12 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   <button id="themeBtn">切换深色</button>
 </div>
 <div id="shopFilterBar"></div>
-<div id="hallFilterBar"></div>
+
+<!-- ========== 新增宴会厅多选下拉UI ========== -->
+<div class="hall-filter-wrap">
+  <button id="hallSelectBtn">选择宴会厅 ▾</button>
+  <div class="hall-dropdown" id="hallDropdown"></div>
+</div>
 
 <div class="status-line" id="lunarLoadStatus"></div>
 <div class="status-line" id="starStatus"></div>
@@ -204,20 +243,21 @@ const FESHU_JSON_URL = "./feishu_data.json";
 const LOCAL_STORAGE_KEY = "feishu_banquet_cache";
 const CACHE_TTL = 5 * 60 * 1000;
 
-// 全部宴会厅选项
-const ALL_HALL_LIST = [
-  "星恋厅","星缘厅","星诺厅","星彩厅","星尚厅","星漫厅","星光厅","星月厅",
-  "星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅",
-  "衡山厅","南岳厅","星仪厅","星河厅","星眸厅","星斓厅","星璨厅",
-  "星恒厅","星境厅","星喜厅","星享厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
+// ========== 宴会厅完整列表（自动去重） ==========
+const HALL_RAW_LIST = [
+  "星恋厅","星缘厅","星恋厅","星缘厅","星诺厅","星彩厅","星尚厅","星漫厅","星光厅",
+  "星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅",
+  "衡山厅","南岳厅","星仪厅","星河厅","星眸厅","星斓厅","星璨厅","星恒厅",
+  "星境厅","星喜厅","星享厅","星仪厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
 ];
+const HALL_LIST = [...new Set(HALL_RAW_LIST)]; //去重后宴会厅数组
 
 let starDateMap = {};    // key:公历日期 -> value:星类型
 let starLunarMap = {};   // key:公历日期 -> value:农历显示文本（来自star.xlsx）
 let fullOriginEventList = []; // 原始全部数据，用于筛选
 let fullEventList = [];       // 当前筛选后展示数据
 let currentShopFilter = null; // 当前选中门店 null=全部
-let selectedHallSet = new Set(); // 选中的宴会厅集合，支持多选
+let selectedHallList = [];    // 新增：选中的宴会厅数组，空数组=不筛选宴会厅
 let loading = false;
 
 // ========== 农历中文映射（备用，若star.xlsx农历列是数字则用此转换）==========
@@ -356,18 +396,19 @@ function isCacheExpired(cacheObj){
   return Date.now() - cacheObj.updateTime > CACHE_TTL;
 }
 
-// 根据门店+宴会厅过滤数据
+// 根据筛选门店+宴会厅过滤数据
 function applyShopFilter(){
-  let list = [...fullOriginEventList];
-  // 门店过滤
-  if(currentShopFilter !== null){
-    list = list.filter(item=>item.shop === currentShopFilter);
+  let tempList;
+  if(currentShopFilter === null){
+    tempList = [...fullOriginEventList];
+  }else{
+    tempList = fullOriginEventList.filter(item=>item.shop === currentShopFilter);
   }
-  // 宴会厅多选过滤：选中集合不为空，则只保留hall在集合内
-  if(selectedHallSet.size > 0){
-    list = list.filter(item => selectedHallSet.has(item.hall || ""));
+  // 叠加宴会厅筛选
+  if(selectedHallList.length > 0){
+    tempList = tempList.filter(item => selectedHallList.includes(item.hall));
   }
-  fullEventList = list;
+  fullEventList = tempList;
 }
 
 function getMonthEventFromCache(y,m){
@@ -395,7 +436,6 @@ function renderShopFilterButtons(){
     currentShopFilter = null;
     applyShopFilter();
     renderShopFilterButtons();
-    renderHallFilterButtons();
     renderCalendar();
   };
   bar.appendChild(btnAll);
@@ -408,45 +448,56 @@ function renderShopFilterButtons(){
       currentShopFilter = shopName;
       applyShopFilter();
       renderShopFilterButtons();
-      renderHallFilterButtons();
       renderCalendar();
     };
     bar.appendChild(btn);
   });
 }
 
-// 渲染宴会厅多选按钮
-function renderHallFilterButtons(){
-  const bar = document.getElementById("hallFilterBar");
-  bar.innerHTML = "";
+// ========== 渲染宴会厅多选下拉框 ==========
+function renderHallDropdown(){
+  const dropdown = document.getElementById("hallDropdown");
+  const btn = document.getElementById("hallSelectBtn");
+  dropdown.innerHTML = "";
 
-  const btnClear = document.createElement("button");
-  btnClear.textContent = "全部宴会厅";
-  if(selectedHallSet.size === 0) btnClear.classList.add("active");
-  btnClear.onclick = ()=>{
-    selectedHallSet.clear();
+  // 全选/清空按钮
+  const clearAllDiv = document.createElement("div");
+  clearAllDiv.className = "hall-item";
+  clearAllDiv.innerHTML = `<input type="checkbox"> <span>【清空全部选择】</span>`;
+  clearAllDiv.onclick = ()=>{
+    selectedHallList = [];
+    renderHallDropdown();
     applyShopFilter();
-    renderHallFilterButtons();
     renderCalendar();
   };
-  bar.appendChild(btnClear);
+  dropdown.appendChild(clearAllDiv);
 
-  ALL_HALL_LIST.forEach(hallName=>{
-    const btn = document.createElement("button");
-    btn.textContent = hallName;
-    if(selectedHallSet.has(hallName)) btn.classList.add("active");
-    btn.onclick = ()=>{
-      if(selectedHallSet.has(hallName)){
-        selectedHallSet.delete(hallName);
+  HALL_LIST.forEach(hallName=>{
+    const div = document.createElement("div");
+    div.className = "hall-item";
+    const checked = selectedHallList.includes(hallName);
+    div.innerHTML = `<input type="checkbox" ${checked?"checked":""}> <span>${hallName}</span>`;
+    div.onclick = (ev)=>{
+      ev.stopPropagation();
+      const idx = selectedHallList.indexOf(hallName);
+      if(idx > -1){
+        selectedHallList.splice(idx,1);
       }else{
-        selectedHallSet.add(hallName);
+        selectedHallList.push(hallName);
       }
+      renderHallDropdown();
       applyShopFilter();
-      renderHallFilterButtons();
       renderCalendar();
     };
-    bar.appendChild(btn);
+    dropdown.appendChild(div);
   });
+
+  // 更新按钮文字
+  if(selectedHallList.length ===0){
+    btn.innerText = "选择宴会厅 ▾";
+  }else{
+    btn.innerText = `已选${selectedHallList.length}个厅 ▾`;
+  }
 }
 
 // ========== 星日期Excel（同时读取农历列）==========
@@ -549,7 +600,7 @@ async function loadFeishuJson(forceRefresh = false){
       cacheInfo.style.color = "#0e9f6e";
     }
     renderShopFilterButtons();
-    renderHallFilterButtons();
+    renderHallDropdown();
     renderCalendar();
     if(loadStatus) loadStatus.innerText = `✅已同步全部宴席${fullOriginEventList.length}条`;
   }catch(err){
@@ -605,7 +656,7 @@ async function init(){
     fullOriginEventList = cache.data;
     applyShopFilter();
     renderShopFilterButtons();
-    renderHallFilterButtons();
+    renderHallDropdown();
     const timeStr = new Date(cache.updateTime).toLocaleString();
     const cacheInfoEl = document.getElementById("cacheInfo");
     if(cacheInfoEl){
@@ -615,6 +666,7 @@ async function init(){
   }
 
   bindEvent();
+  renderHallDropdown();
 
   // 只加载star.xlsx（含农历）和宴席数据
   const pExcel = loadStarExcel();
@@ -680,6 +732,18 @@ function renderCalendar(){
     const starHtml = starType ? `<div class="star-tag">${starType}</div>` : "";
     const todayStarMark = isToday ? `<span class="today-mark">⭐</span>` : "";
 
+    // ========== 新增：选中宴会厅时输出 厅名‑空 ==========
+    let hallEmptyHtml = "";
+    if(selectedHallList.length >0){
+      // 获取今日已存在宴席的宴会厅集合
+      const dayHaveHallSet = new Set(dayEvList.map(e=>e.hall));
+      for(const hallName of selectedHallList){
+        if(!dayHaveHallSet.has(hallName)){
+          hallEmptyHtml += `<div class="hall-empty-text">${hallName}-空</div>`;
+        }
+      }
+    }
+
     div.innerHTML = `
       ${badgeHtml}
       <div class="solar">${d}</div>
@@ -688,6 +752,7 @@ function renderCalendar(){
       ${lunarFestivalText ? `<div class="lunar-festival">${lunarFestivalText}</div>` : ""}
       ${termText ? `<div class="solar-term">${termText}</div>` : ""}
       ${starHtml}
+      ${hallEmptyHtml}
       ${todayStarMark}
     `;
 
@@ -718,14 +783,13 @@ function clickDay(el, evList){
 
   let detailHtml = "";
   if(evList.length === 0){
-    detailHtml = "<div>当日暂无宴席预定（所选筛选条件下）</div>";
+    detailHtml = "<div>当日暂无宴席预定</div>";
   }else{
     evList.forEach(ev => {
-      const hallShow = ev.hall || "宴会厅为空";
       detailHtml += `
       <div class="detail-item">
         <div>🏢门店：${ev.shop || "未填写"}</div>
-        <div>🏨宴会厅：${hallShow}</div>
+        <div>🏨宴会厅：${ev.hall || "未填写"}</div>
         <div>👤客户|宴会主题：${ev.customer || "未填写"}</div>
         <div>🪑桌数：${ev.table || "未填写"}</div>
         <div>👔销售负责人：${ev.sales || ""}</div>
@@ -776,6 +840,18 @@ function bindEvent(){
     const html = document.documentElement;
     html.hasAttribute("data-theme") ? (html.removeAttribute("data-theme"), themeBtn.innerText = "切换深色") : (html.setAttribute("data-theme", "dark"), themeBtn.innerText = "切换浅色");
   };
+
+  // 宴会厅下拉点击展开收起
+  const hallBtn = $("#hallSelectBtn");
+  const hallDropdown = $("#hallDropdown");
+  hallBtn.onclick = (e)=>{
+    e.stopPropagation();
+    hallDropdown.classList.toggle("show");
+  };
+  // 点击页面任意地方关闭下拉
+  document.body.addEventListener("click",()=>{
+    hallDropdown.classList.remove("show");
+  });
 
   // 手机左右滑动
   calendarEl.addEventListener('touchstart', (e)=>{
