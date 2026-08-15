@@ -16,6 +16,7 @@ KEY_BANQUET_HALL = "宴会厅"
 KEY_THEME = "客户|宴会主题"
 KEY_SALES = "销售负责人"
 KEY_TABLE_NUM = "桌数"
+KEY_SHOP = "门店"   # 新增门店字段，和飞书多维表显示名字完全一致
 # ========================================================
 
 def get_tenant_access_token():
@@ -59,6 +60,7 @@ def transform(records):
             print("\n=====第{}条调试信息====".format(idx+1))
             print("宴会日期原始值:", f.get(KEY_DATE))
             print("宴会厅原始值:", f.get(KEY_BANQUET_HALL))
+            print("门店原始值:", f.get(KEY_SHOP))  # 调试打印门店
 
         raw_date = f.get(KEY_DATE)
         party_date = None
@@ -78,7 +80,9 @@ def transform(records):
             party_date = raw_date.strip()
 
         banquect_hall_val = f.get(KEY_BANQUET_HALL)
-        # 过滤：宴会日期为空 或者 宴会厅为空/None，都跳过不导出
+        shop_val = f.get(KEY_SHOP)  # 获取门店
+
+        # 过滤：宴会日期为空 或者 宴会厅为空/None，都跳过不导出；门店允许为空
         if (party_date is None or party_date == "") or (banquect_hall_val is None or str(banquect_hall_val).strip() == ""):
             skip_count += 1
             continue
@@ -88,6 +92,7 @@ def transform(records):
             "档期属性": f.get(KEY_CUSTOMER),
             "预定情况": f.get(KEY_STATUS),
             "宴会厅": banquect_hall_val,
+            "门店": shop_val,   # 输出增加门店字段
             "客户|宴会主题": f.get(KEY_THEME),
             "销售负责人": f.get(KEY_SALES),
             "桌数": f.get(KEY_TABLE_NUM)
@@ -109,3 +114,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
