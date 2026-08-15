@@ -1,43 +1,47 @@
 name: 同步飞书宴席数据
 on:
-  workflow_dispatch: # 保留手动按钮触发
+  # 北京时间每小时整点自动执行
   schedule:
-  # 北京时间每小时整点 = UTC时间往前减8小时；cron写UTC时间
-  # 北京时间 0点 → UTC16点；北京时间23点 → UTC15点
-  # cron语法： 分 时 日 月 周
-  - cron: '22 */1 * * *'
+    - cron: '0 1-23/1 * * *'
+  # 支持页面手动点击运行测试
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   sync_job:
     runs-on: ubuntu-latest
+    env:
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      BITABLE_APP_TOKEN: ${{ secrets.BITABLE_APP_TOKEN }}
+      BITABLE_TABLE_ID: ${{ secrets.BITABLE_TABLE_ID }}
     steps:
       - name: 检出仓库代码
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT }}
+          fetch-depth: 0
+          token: ${{ github.token }}
 
-      - name: 配置python环境
+      - name: 设置Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: 安装依赖
-        run: |
-          pip install requests openpyxl
+      - name: 安装依赖requests
+        run: pip install requests
 
       - name: 执行飞书多维表导出脚本
-        env:
-          FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
-          FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-          FEISHU_BITABLE_TOKEN: ${{ secrets.FEISHU_BITABLE_TOKEN }}
-          FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
-        run: |
-          python ./feishu_sync.py
+        run: python feishu_sync.py
 
-      - name: 提交更新数据回仓库
+      - name: 配置git提交身份
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add feishu_data.json star.xlsx
-          git commit -m "auto sync feishu data" || echo "no changes to commit"
-          git push origin main
+
+      - name: 提交变更推送回仓库
+        run: |
+          git add feishu_data.json
+          git diff --quiet && echo "无数据变更，跳过提交" || git commit -m "auto sync feishu bitable data"
+          git push
