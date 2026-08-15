@@ -1,47 +1,38 @@
-name: 同步飞书宴席数据
+name: sync feishu and deploy pages
 on:
-  # 北京时间每小时整点自动执行
+  workflow_dispatch: # 支持手动点按钮触发
   schedule:
-    - cron: '0 1-23/1 * * *'
-  # 支持页面手动点击运行测试
-  workflow_dispatch:
-
-permissions:
-  contents: write
+    - cron: '0 * * * *' # 每小时执行一次，和你之前需求一致
 
 jobs:
-  sync_job:
+  build-deploy:
     runs-on: ubuntu-latest
-    env:
-      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
-      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
-      BITABLE_APP_TOKEN: ${{ secrets.BITABLE_APP_TOKEN }}
-      BITABLE_TABLE_ID: ${{ secrets.BITABLE_TABLE_ID }}
     steps:
-      - name: 检出仓库代码
+      - name: checkout source code(main分支源码)
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ github.token }}
 
-      - name: 设置Python
+      - name: setup python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: 安装依赖requests
-        run: pip install requests
+      - name: install python deps
+        run: |
+          pip install requests
 
-      - name: 执行飞书多维表导出脚本
+      - name: run feishu sync script
+        env:
+          # 把secrets传给脚本环境变量，脚本从环境变量读取token，不要硬编码写脚本文件
+          PERSONAL_FINE_GRAINED_TOKEN: ${{ secrets.PERSONAL_FINE_GRAINED_TOKEN }}
         run: python feishu_sync.py
+        # ⚠️你的 feishu_sync.py 需要改成从环境变量读取token，不要写死在py源码！
+        # 示例py读取代码：import os; token = os.getenv("PERSONAL_FINE_GRAINED_TOKEN")
 
-      - name: 配置git提交身份
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: 提交变更推送回仓库
-        run: |
-          git add feishu_data.json
-          git diff --quiet && echo "无数据变更，跳过提交" || git commit -m "auto sync feishu bitable data"
-          git push
+      # 上面执行完，当前目录已经产出 feishu_data.json
+      # 使用官方pages部署action，把 index.html + feishu_data.json 发布到gh‑pages分支
+      - name: deploy to github pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./ # 当前目录全部文件(html+json)输出到gh‑pages
