@@ -63,10 +63,26 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
 
 #shopFilterBar{
   display:flex;
-  gap:6px;
+  gap:4px;
+  flex-wrap:wrap;
+  justify-content:center;
+  margin-bottom:6px;
+}
+#shopFilterBar button{
+  font-size:12px;
+  padding:3px 6px;
+}
+
+#hallFilterBar{
+  display:flex;
+  gap:3px;
   flex-wrap:wrap;
   justify-content:center;
   margin-bottom:8px;
+}
+#hallFilterBar button{
+  font-size:11px;
+  padding:2px 5px;
 }
 
 #calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;touch-action:pan-y;}
@@ -130,7 +146,8 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   .festival,.lunar-festival,.solar-term,.star-tag{font-size:9px;}
   .ev-badge{font-size:9px;min-width:12px;}
   .status-line{font-size:11px;}
-  #shopFilterBar button{font-size:12px;padding:3px 6px;}
+  #shopFilterBar button{font-size:11px;padding:2px 5px;}
+  #hallFilterBar button{font-size:10px;padding:2px 4px;}
 }
 </style>
 </head>
@@ -146,6 +163,7 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   <button id="themeBtn">切换深色</button>
 </div>
 <div id="shopFilterBar"></div>
+<div id="hallFilterBar"></div>
 
 <div class="status-line" id="lunarLoadStatus"></div>
 <div class="status-line" id="starStatus"></div>
@@ -186,11 +204,20 @@ const FESHU_JSON_URL = "./feishu_data.json";
 const LOCAL_STORAGE_KEY = "feishu_banquet_cache";
 const CACHE_TTL = 5 * 60 * 1000;
 
+// 全部宴会厅选项
+const ALL_HALL_LIST = [
+  "星恋厅","星缘厅","星诺厅","星彩厅","星尚厅","星漫厅","星光厅","星月厅",
+  "星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅",
+  "衡山厅","南岳厅","星仪厅","星河厅","星眸厅","星斓厅","星璨厅",
+  "星恒厅","星境厅","星喜厅","星享厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
+];
+
 let starDateMap = {};    // key:公历日期 -> value:星类型
 let starLunarMap = {};   // key:公历日期 -> value:农历显示文本（来自star.xlsx）
 let fullOriginEventList = []; // 原始全部数据，用于筛选
 let fullEventList = [];       // 当前筛选后展示数据
 let currentShopFilter = null; // 当前选中门店 null=全部
+let selectedHallSet = new Set(); // 选中的宴会厅集合，支持多选
 let loading = false;
 
 // ========== 农历中文映射（备用，若star.xlsx农历列是数字则用此转换）==========
@@ -329,13 +356,18 @@ function isCacheExpired(cacheObj){
   return Date.now() - cacheObj.updateTime > CACHE_TTL;
 }
 
-// 根据筛选门店过滤数据
+// 根据门店+宴会厅过滤数据
 function applyShopFilter(){
-  if(currentShopFilter === null){
-    fullEventList = [...fullOriginEventList];
-  }else{
-    fullEventList = fullOriginEventList.filter(item=>item.shop === currentShopFilter);
+  let list = [...fullOriginEventList];
+  // 门店过滤
+  if(currentShopFilter !== null){
+    list = list.filter(item=>item.shop === currentShopFilter);
   }
+  // 宴会厅多选过滤：选中集合不为空，则只保留hall在集合内
+  if(selectedHallSet.size > 0){
+    list = list.filter(item => selectedHallSet.has(item.hall || ""));
+  }
+  fullEventList = list;
 }
 
 function getMonthEventFromCache(y,m){
@@ -363,6 +395,7 @@ function renderShopFilterButtons(){
     currentShopFilter = null;
     applyShopFilter();
     renderShopFilterButtons();
+    renderHallFilterButtons();
     renderCalendar();
   };
   bar.appendChild(btnAll);
@@ -375,6 +408,41 @@ function renderShopFilterButtons(){
       currentShopFilter = shopName;
       applyShopFilter();
       renderShopFilterButtons();
+      renderHallFilterButtons();
+      renderCalendar();
+    };
+    bar.appendChild(btn);
+  });
+}
+
+// 渲染宴会厅多选按钮
+function renderHallFilterButtons(){
+  const bar = document.getElementById("hallFilterBar");
+  bar.innerHTML = "";
+
+  const btnClear = document.createElement("button");
+  btnClear.textContent = "全部宴会厅";
+  if(selectedHallSet.size === 0) btnClear.classList.add("active");
+  btnClear.onclick = ()=>{
+    selectedHallSet.clear();
+    applyShopFilter();
+    renderHallFilterButtons();
+    renderCalendar();
+  };
+  bar.appendChild(btnClear);
+
+  ALL_HALL_LIST.forEach(hallName=>{
+    const btn = document.createElement("button");
+    btn.textContent = hallName;
+    if(selectedHallSet.has(hallName)) btn.classList.add("active");
+    btn.onclick = ()=>{
+      if(selectedHallSet.has(hallName)){
+        selectedHallSet.delete(hallName);
+      }else{
+        selectedHallSet.add(hallName);
+      }
+      applyShopFilter();
+      renderHallFilterButtons();
       renderCalendar();
     };
     bar.appendChild(btn);
@@ -481,6 +549,7 @@ async function loadFeishuJson(forceRefresh = false){
       cacheInfo.style.color = "#0e9f6e";
     }
     renderShopFilterButtons();
+    renderHallFilterButtons();
     renderCalendar();
     if(loadStatus) loadStatus.innerText = `✅已同步全部宴席${fullOriginEventList.length}条`;
   }catch(err){
@@ -536,6 +605,7 @@ async function init(){
     fullOriginEventList = cache.data;
     applyShopFilter();
     renderShopFilterButtons();
+    renderHallFilterButtons();
     const timeStr = new Date(cache.updateTime).toLocaleString();
     const cacheInfoEl = document.getElementById("cacheInfo");
     if(cacheInfoEl){
@@ -648,13 +718,14 @@ function clickDay(el, evList){
 
   let detailHtml = "";
   if(evList.length === 0){
-    detailHtml = "<div>当日暂无宴席预定</div>";
+    detailHtml = "<div>当日暂无宴席预定（所选筛选条件下）</div>";
   }else{
     evList.forEach(ev => {
+      const hallShow = ev.hall || "宴会厅为空";
       detailHtml += `
       <div class="detail-item">
         <div>🏢门店：${ev.shop || "未填写"}</div>
-        <div>🏨宴会厅：${ev.hall || "未填写"}</div>
+        <div>🏨宴会厅：${hallShow}</div>
         <div>👤客户|宴会主题：${ev.customer || "未填写"}</div>
         <div>🪑桌数：${ev.table || "未填写"}</div>
         <div>👔销售负责人：${ev.sales || ""}</div>
