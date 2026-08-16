@@ -19,6 +19,10 @@ KEY_TABLE_NUM = "桌数"
 KEY_SHOP = "门店"   # 新增门店字段，和飞书多维表显示名字完全一致
 # ========================================================
 
+# 东八区 8小时，单位毫秒
+OFFSET_MS = 8 * 3600 * 1000
+
+
 def get_tenant_access_token():
     url = "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal"
     payload = {
@@ -60,19 +64,19 @@ def transform(records):
             print("\n=====第{}条调试信息====".format(idx+1))
             print("宴会日期原始值:", f.get(KEY_DATE))
             print("宴会厅原始值:", f.get(KEY_BANQUET_HALL))
-            print("门店原始值:", f.get(KEY_SHOP))  # 调试打印门店
+            print("门店原始值:", f.get(KEY_SHOP))
 
         raw_date = f.get(KEY_DATE)
         party_date = None
 
         # 情况1：直接数字毫秒戳
         if isinstance(raw_date, int):
-            ts = raw_date
+            ts = raw_date + OFFSET_MS
             dt = datetime.fromtimestamp(ts / 1000)
             party_date = dt.strftime("%Y-%m-%d")
         # 情况2：数组 [时间戳, 时区]
         elif isinstance(raw_date, list) and len(raw_date) >= 1 and isinstance(raw_date[0], int):
-            ts = raw_date[0]
+            ts = raw_date[0] + OFFSET_MS
             dt = datetime.fromtimestamp(ts / 1000)
             party_date = dt.strftime("%Y-%m-%d")
         # 情况3：已经是字符串日期
@@ -80,7 +84,7 @@ def transform(records):
             party_date = raw_date.strip()
 
         banquect_hall_val = f.get(KEY_BANQUET_HALL)
-        shop_val = f.get(KEY_SHOP)  # 获取门店
+        shop_val = f.get(KEY_SHOP)
 
         # 过滤：宴会日期为空 或者 宴会厅为空/None，都跳过不导出；门店允许为空
         if (party_date is None or party_date == "") or (banquect_hall_val is None or str(banquect_hall_val).strip() == ""):
@@ -92,7 +96,7 @@ def transform(records):
             "档期属性": f.get(KEY_CUSTOMER),
             "预定情况": f.get(KEY_STATUS),
             "宴会厅": banquect_hall_val,
-            "门店": shop_val,   # 输出增加门店字段
+            "门店": shop_val,
             "客户|宴会主题": f.get(KEY_THEME),
             "销售负责人": f.get(KEY_SALES),
             "桌数": f.get(KEY_TABLE_NUM)
@@ -114,4 +118,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
