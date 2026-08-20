@@ -239,6 +239,15 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   background:var(--cell-book-bg);
   padding:2px;
   border-radius:3px;
+  font-size:10px; /*字体缩小*/
+  line-height:1.3;
+}
+/*预定情况文字颜色规则*/
+.text-wu{
+  color:#ff7800; /*午：橙色*/
+}
+.text-wan{
+  color:#9227b0; /*晚：紫色*/
 }
 
 /*手机小屏幕进一步压缩*/
@@ -966,12 +975,13 @@ function renderMonthTable(){
     renderHallList = renderHallList.filter(h=>selectedHallList.includes(h));
   }
 
-  // 组装当月事件map key:date+hall
+  // 组装当月事件map key:date+hall → 数组，支持同一天同一个宴会厅多条记录
   const monthEv = getMonthEventFromCache(currentYear,currentMonth);
-  const evMap = {};
+  const evGroup = {};
   for(const ev of monthEv){
     const key = ev.date + "||" + ev.hall;
-    evMap[key] = ev;
+    if(!evGroup[key]) evGroup[key] = [];
+    evGroup[key].push(ev);
   }
 
   // =========表头渲染=========
@@ -1001,9 +1011,18 @@ function renderMonthTable(){
       const dateStr = `${currentYear}-${String(currentMonth).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
       const key = dateStr + "||" + hallName;
       const td = document.createElement("td");
-      if(evMap[key]){
-        //显示预定情况字段
-        td.innerHTML = `<div class="month-cell-book">${evMap[key].title||""}</div>`;
+      const evArr = evGroup[key];
+      if(evArr && evArr.length>0){
+        let innerHtml = "";
+        evArr.forEach(item=>{
+          let titleText = item.title||"";
+          let clsArr = [];
+          if(titleText.includes("午")) clsArr.push("text-wu");
+          if(titleText.includes("晚")) clsArr.push("text-wan");
+          const clsStr = clsArr.length>0 ? `class="${clsArr.join(" ")}"` : "";
+          innerHtml += `<div class="month-cell-book"><span ${clsStr}>${titleText}</span></div>`;
+        })
+        td.innerHTML = innerHtml;
       }
       tr.appendChild(td);
     }
