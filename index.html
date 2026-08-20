@@ -149,12 +149,13 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   line-height:1.1;
 }
 
-/* ==========【状态信息：右下角悬浮】 ========== */
-.status-wrap-fixed{
-  position:fixed;
-  bottom:12px;
-  right:12px;
-  z-index: 90;
+/* ==========【状态信息：改为普通文档流，页面右下角，不再fixed悬浮】 ========== */
+.status-wrap-wrap{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:12px;
+}
+.status-wrap{
   background:var(--card);
   border:1px solid var(--border);
   border-radius:6px;
@@ -309,10 +310,8 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   .hall-dropdown{min-width:180px;}
   .hall-empty-text{font-size:9px;}
   .tab-item{padding:6px 10px;font-size:14px;}
-  .status-wrap-fixed{
+  .status-wrap{
     max-width:240px;
-    bottom:6px;
-    right:6px;
   }
 }
 </style>
@@ -342,14 +341,6 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   <div class="hall-dropdown" id="hallDropdown"></div>
 </div>
 
-<!-- ========= 修改：状态信息全部放到右下角固定容器内 ========= -->
-<div class="status-wrap-fixed">
-  <div class="status-line" id="lunarLoadStatus"></div>
-  <div class="status-line" id="starStatus"></div>
-  <div class="status-line" id="loadStatus"></div>
-  <div class="status-line" id="cacheInfo"></div>
-</div>
-
 <!-- ==========标签页1：日场地【原有农历日历】 ========== -->
 <div class="tab-panel show" id="panel-day">
   <!--星期头部栏-->
@@ -375,6 +366,16 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
       <thead></thead>
       <tbody></tbody>
     </table>
+  </div>
+</div>
+
+<!-- =========状态信息块：移到页面文档流末尾，右对齐，不再fixed悬浮 ========= -->
+<div class="status-wrap-wrap">
+  <div class="status-wrap">
+    <div class="status-line" id="lunarLoadStatus"></div>
+    <div class="status-line" id="starStatus"></div>
+    <div class="status-line" id="loadStatus"></div>
+    <div class="status-line" id="cacheInfo"></div>
   </div>
 </div>
 
