@@ -683,4 +683,155 @@ const infoText = $("#infoText");
 async function init(){
   const now = new Date();
   currentYear = now.getFullYear();
-  currentMonth = now.getMonth() + 
+  currentMonth = now.getMonth() + 1;
+
+  // 尝试读取本地缓存
+  const cache = readEventCache();
+  if(cache && !isCacheExpired(cache)){
+    fullOriginEventList = cache.data;
+    applyShopFilter();
+    renderShopFilterButtons();
+    renderHallDropdown();
+  }
+
+  // 并行加载星Excel 和宴席json
+  await Promise.all([
+    loadStarExcel(),
+    loadFeishuJson(false)
+  ]);
+
+  renderCalendar();
+
+  // 绑定按钮事件
+  $("#prev").onclick = ()=>{
+    currentMonth--;
+    if(currentMonth < 1){
+      currentMonth = 12;
+      currentYear--;
+    }
+    renderCalendar();
+  }
+  $("#next").onclick = ()=>{
+    currentMonth++;
+    if(currentMonth >12){
+      currentMonth =1;
+      currentYear++;
+    }
+    renderCalendar();
+  }
+
+  $("#refresh").onclick = ()=> loadFeishuJson(true);
+
+  $("#themeBtn").onclick = ()=>{
+    const html = document.documentElement;
+    if(html.dataset.theme === "dark"){
+      delete html.dataset.theme;
+      $("#themeBtn").innerText = "切换深色";
+    }else{
+      html.dataset.theme = "dark";
+      $("#themeBtn").innerText = "切换浅色";
+    }
+  }
+
+  //宴会厅下拉点击开关
+  const hallBtn = $("#hallSelectBtn");
+  const hallDrop = $("#hallDropdown");
+  hallBtn.onclick = (e)=>{
+    e.stopPropagation();
+    hallDrop.classList.toggle("show");
+  }
+  //点击页面外部关闭下拉
+  document.addEventListener("click",()=>{
+    hallDrop.classList.remove("show");
+  })
+}
+
+
+function renderCalendar(){
+  ymEl.innerText = `${currentYear}年${currentMonth}月`;
+  calendarEl.innerHTML = "";
+  const firstDay = new Date(currentYear, currentMonth-1, 1);
+  const lastDay = new Date(currentYear, currentMonth, 0);
+  const totalDays = lastDay.getDate();
+  // 本周第一天：周日=0，我们只显示【日 一 二 三 四】5列，周五(5)周六(6)直接跳过
+  let startWeekDay = firstDay.getDay(); //0周日,1周一...4周四,5周五,6周六
+
+  //填充前面空白格子
+  for(let i=0;i<startWeekDay;i++){
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "day-item empty";
+    calendarEl.appendChild(emptyDiv);
+  }
+
+  const monthEvents = getMonthEventFromCache(currentYear, currentMonth);
+  const todayObj = new Date();
+  const todayY = todayObj.getFullYear();
+  const todayM = todayObj.getMonth()+1;
+  const todayD = todayObj.getDate();
+
+  for(let d=1;d<=totalDays;d++){
+    const dateObj = new Date(currentYear,currentMonth-1,d);
+    const wd = dateObj.getDay();
+    // 周五5、周六6直接跳过不渲染
+    if(wd ===5 || wd ===6) continue;
+
+    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const dayDiv = document.createElement("div");
+    dayDiv.className = "day-item";
+
+    //今日标记
+    if(currentYear === todayY && currentMonth === todayM && d === todayD){
+      dayDiv.classList.add("today");
+    }
+
+    //星类型样式
+    const starType = starDateMap[dateStr] || "";
+    if(starType === "旺") dayDiv.classList.add("star-wang");
+    if(starType === "吉") dayDiv.classList.add("star-ji");
+    if(starType === "好") dayDiv.classList.add("star-hao");
+    if(starType === "宜") dayDiv.classList.add("star-yi");
+
+    //农历文本
+    const lunarTxt = formatLunarDisplay(starLunarMap[dateStr]);
+    //节日
+    const solarFest = getSolarFestival(currentYear,currentMonth,d);
+    const lunarFest = getLunarFestival(lunarTxt);
+    const termTxt = getSolarTerm(currentYear,currentMonth,d);
+
+    //当日事件
+    const dayEvts = monthEvents.filter(ev=> ev.date === dateStr);
+    if(dayEvts.length>0) dayDiv.classList.add("has-ev");
+
+    dayDiv.innerHTML =`
+      <div class="solar">${d}</div>
+      <div class="lunar">${lunarTxt}</div>
+      ${solarFest?`<div class="festival">${solarFest}</div>`:""}
+      ${lunarFest?`<div class="lunar-festival">${lunarFest}</div>`:""}
+      ${termTxt?`<div class="solar-term">${termTxt}</div>`:""}
+      ${starType?`<div class="star-tag">星${starType}</div>`:""}
+      ${dayEvts.length>0?`<div class="ev-badge">${dayEvts.length}</div>`:""}
+    `;
+
+    //点击日期弹窗详情
+    dayDiv.onclick = ()=>{
+      selectItem = dateStr;
+      infoCard.style.display = "block";
+      let htmlText = `<div><b>${dateStr} ${lunarTxt}</b></div>`;
+      if(dayEvts.length ===0){
+        htmlText += `<div>今日无宴席预定</div>`
+      }else{
+        dayEvts.forEach(evt=>{
+          htmlText += `<div class="detail-item">🏨${evt.shop}｜${evt.hall}<br/>👤${evt.customer}｜桌数:${evt.table}<br/>📝${evt.title}｜销售:${evt.sales}</div>`
+        })
+      }
+      infoText.innerHTML = htmlText;
+    }
+    calendarEl.appendChild(dayDiv);
+  }
+}
+
+//页面加载启动
+window.addEventListener("DOMContentLoaded",init);
+</script>
+</body>
+</html>
