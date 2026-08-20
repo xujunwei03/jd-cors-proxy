@@ -118,11 +118,12 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   line-height:1.1;
 }
 
-#calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;touch-action:pan-y;}
-/*星期头部*/
+/* 修改为5列，冻结1‑4（日一二三四），隐藏周五、周六 */
+#calendar{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;touch-action:pan-y;}
+/*星期头部 只保留5列：日、一、二、三、四 */
 .week-header{
   display:grid;
-  grid-template-columns:repeat(7,1fr);
+  grid-template-columns:repeat(5,1fr);
   gap:3px;
   margin-bottom:4px;
 }
@@ -209,15 +210,13 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
 <div class="status-line" id="loadStatus"></div>
 <div class="status-line" id="cacheInfo"></div>
 
-<!--星期头部栏-->
+<!--星期头部栏：只保留 日、一、二、三、四，移除五、六 -->
 <div class="week-header">
   <div>日</div>
   <div>一</div>
   <div>二</div>
   <div>三</div>
   <div>四</div>
-  <div>五</div>
-  <div>六</div>
 </div>
 
 <div id="calendar"></div>
@@ -243,14 +242,18 @@ const FESHU_JSON_URL = "./feishu_data.json";
 const LOCAL_STORAGE_KEY = "feishu_banquet_cache";
 const CACHE_TTL = 5 * 60 * 1000;
 
-// ========== 宴会厅完整列表（自动去重） ==========
-const HALL_RAW_LIST = [
-  "星恋厅","星缘厅","星恋厅","星缘厅","星诺厅","星彩厅","星尚厅","星漫厅","星光厅",
-  "星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅",
-  "衡山厅","南岳厅","星仪厅","星河厅","星眸厅","星斓厅","星璨厅","星恒厅",
-  "星境厅","星喜厅","星享厅","星仪厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
-];
-const HALL_LIST = [...new Set(HALL_RAW_LIST)]; //去重后宴会厅数组
+// ========== 门店与宴会厅映射 ==========
+const SHOP_TO_HALL_MAP = {
+  "阳光店": [
+    "星晴厅","星尚厅","星诺厅","星漫厅","星彩厅","星恋厅","星蓉厅","星逸厅","星缘厅"
+  ],
+  "华耀城店": [
+    "星光厅","星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅","衡山厅","南岳厅","星仪厅"
+  ],
+  "君雅店": [
+    "星河厅","星眸厅","星斓厅","星璨厅","星恒厅","星境厅","星喜厅","星享厅","星仪厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
+  ]
+};
 
 let starDateMap = {};    // key:公历日期 -> value:星类型
 let starLunarMap = {};   // key:公历日期 -> value:农历显示文本（来自star.xlsx）
@@ -434,8 +437,10 @@ function renderShopFilterButtons(){
   if(currentShopFilter===null) btnAll.classList.add("active");
   btnAll.onclick = ()=>{
     currentShopFilter = null;
+    selectedHallList = []; //切换门店清空宴会厅选择
     applyShopFilter();
     renderShopFilterButtons();
+    renderHallDropdown();
     renderCalendar();
   };
   bar.appendChild(btnAll);
@@ -446,8 +451,10 @@ function renderShopFilterButtons(){
     if(currentShopFilter === shopName) btn.classList.add("active");
     btn.onclick = ()=>{
       currentShopFilter = shopName;
+      selectedHallList = []; //切换门店清空宴会厅选择
       applyShopFilter();
       renderShopFilterButtons();
+      renderHallDropdown();
       renderCalendar();
     };
     bar.appendChild(btn);
@@ -460,11 +467,41 @@ function renderHallDropdown(){
   const btn = document.getElementById("hallSelectBtn");
   dropdown.innerHTML = "";
 
-  // 全选/清空按钮
+  // ============【修改点】全部门店时收集全部宴会厅；选门店只取该门店 ============
+  let hallOptions = [];
+  if(currentShopFilter === null){
+    //全部门店：把所有门店的厅全部合并，去重
+    const allHallsSet = new Set();
+    Object.values(SHOP_TO_HALL_MAP).forEach(hallArr=>{
+      hallArr.forEach(h=>allHallsSet.add(h));
+    });
+    hallOptions = Array.from(allHallsSet);
+  }else{
+    //指定门店，取该门店厅
+    if(SHOP_TO_HALL_MAP[currentShopFilter]){
+      hallOptions = SHOP_TO_HALL_MAP[currentShopFilter];
+    }
+  }
+
+  // 全选按钮
+  const selectAllDiv = document.createElement("div");
+  selectAllDiv.className = "hall-item";
+  selectAllDiv.innerHTML = `<input type="checkbox"> <span>【全选】</span>`;
+  selectAllDiv.onclick = (e)=>{
+    e.stopPropagation();
+    selectedHallList = [...hallOptions];
+    renderHallDropdown();
+    applyShopFilter();
+    renderCalendar();
+  };
+  dropdown.appendChild(selectAllDiv);
+
+  // 清空全部按钮
   const clearAllDiv = document.createElement("div");
   clearAllDiv.className = "hall-item";
   clearAllDiv.innerHTML = `<input type="checkbox"> <span>【清空全部选择】</span>`;
-  clearAllDiv.onclick = ()=>{
+  clearAllDiv.onclick = (e)=>{
+    e.stopPropagation();
     selectedHallList = [];
     renderHallDropdown();
     applyShopFilter();
@@ -472,7 +509,7 @@ function renderHallDropdown(){
   };
   dropdown.appendChild(clearAllDiv);
 
-  HALL_LIST.forEach(hallName=>{
+  hallOptions.forEach(hallName=>{
     const div = document.createElement("div");
     div.className = "hall-item";
     const checked = selectedHallList.includes(hallName);
@@ -642,239 +679,8 @@ const ymEl = $("#ym");
 const infoCard = $("#infoCard");
 const infoText = $("#infoText");
 
-// 滑动手势变量
-let touchStartX = 0;
-let touchEndX = 0;
 
 async function init(){
   const now = new Date();
   currentYear = now.getFullYear();
-  currentMonth = now.getMonth() + 1;
-
-  const cache = readEventCache();
-  if(cache && Array.isArray(cache.data)){
-    fullOriginEventList = cache.data;
-    applyShopFilter();
-    renderShopFilterButtons();
-    renderHallDropdown();
-    const timeStr = new Date(cache.updateTime).toLocaleString();
-    const cacheInfoEl = document.getElementById("cacheInfo");
-    if(cacheInfoEl){
-      cacheInfoEl.innerText = `本地缓存:${timeStr}`;
-      cacheInfoEl.style.color = "#0e9f6e";
-    }
-  }
-
-  bindEvent();
-  renderHallDropdown();
-
-  // 只加载star.xlsx（含农历）和宴席数据
-  const pExcel = loadStarExcel();
-  if(cache === null || isCacheExpired(cache)){
-    loadFeishuJson(false);
-  }
-  await pExcel;
-
-  renderCalendar();
-}
-
-function renderCalendar(){
-  const eventData = getMonthEventFromCache(currentYear, currentMonth);
-
-  calendarEl.innerHTML = "";
-  ymEl.innerText = `${currentYear}年${currentMonth}月`;
-  const first = new Date(currentYear, currentMonth - 1, 1);
-  const weekStart = first.getDay();
-  const totalDay = new Date(currentYear, currentMonth, 0).getDate();
-  const today = new Date();
-  const ty = today.getFullYear(), tm = today.getMonth() + 1, td = today.getDate();
-
-  const groupMap = {};
-  for(const ev of eventData){
-    if(!ev.date) continue;
-    if(!groupMap[ev.date]) groupMap[ev.date] = [];
-    groupMap[ev.date].push(ev);
-  }
-
-  for(let i = 0; i < weekStart; i++){
-    const div = document.createElement("div");
-    div.className = "day-item empty";
-    calendarEl.appendChild(div);
-  }
-
-  for(let d = 1; d <= totalDay; d++){
-    const div = document.createElement("div");
-    const dateStr = `${currentYear}-${String(currentMonth).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-    // 农历从star.xlsx的starLunarMap取
-    const lunarRaw = starLunarMap[dateStr];
-    const lunarShowText = formatLunarDisplay(lunarRaw);
-
-    const isToday = (ty === currentYear && tm === currentMonth && td === d);
-    const isSelect = selectItem && selectItem.y === currentYear && selectItem.m === currentMonth && selectItem.d === d;
-    const dayEvList = groupMap[dateStr] || [];
-    const dayCount = dayEvList.length;
-    const starType = starDateMap[dateStr] || "";
-
-    div.className = "day-item";
-    if(isToday) div.classList.add("today");
-    if(isSelect) div.classList.add("active");
-    if(dayCount > 0) div.classList.add("has-ev");
-    if(starType === "星旺日") div.classList.add("star-wang");
-    if(starType === "星吉日") div.classList.add("star-ji");
-    if(starType === "星好日") div.classList.add("star-hao");
-    if(starType === "星宜日") div.classList.add("star-yi");
-
-    const festivalText = getSolarFestival(currentYear, currentMonth, d);
-    const lunarFestivalText = getLunarFestival(lunarShowText);
-    const termText = getSolarTerm(currentYear, currentMonth, d);
-
-    const badgeHtml = dayCount > 0 ? `<div class="ev-badge">${dayCount}</div>` : "";
-    const starHtml = starType ? `<div class="star-tag">${starType}</div>` : "";
-    const todayStarMark = isToday ? `<span class="today-mark">⭐</span>` : "";
-
-    // ========== 新增：选中宴会厅时输出 厅名‑空 ==========
-    let hallEmptyHtml = "";
-    if(selectedHallList.length >0){
-      // 获取今日已存在宴席的宴会厅集合
-      const dayHaveHallSet = new Set(dayEvList.map(e=>e.hall));
-      for(const hallName of selectedHallList){
-        if(!dayHaveHallSet.has(hallName)){
-          hallEmptyHtml += `<div class="hall-empty-text">${hallName}-空</div>`;
-        }
-      }
-    }
-
-    div.innerHTML = `
-      ${badgeHtml}
-      <div class="solar">${d}</div>
-      <div class="lunar">${lunarShowText}</div>
-      ${festivalText ? `<div class="festival">${festivalText}</div>` : ""}
-      ${lunarFestivalText ? `<div class="lunar-festival">${lunarFestivalText}</div>` : ""}
-      ${termText ? `<div class="solar-term">${termText}</div>` : ""}
-      ${starHtml}
-      ${hallEmptyHtml}
-      ${todayStarMark}
-    `;
-
-    div.dataset.y = currentYear;
-    div.dataset.m = currentMonth;
-    div.dataset.d = d;
-    div.dataset.lunar = lunarShowText;
-    div.dataset.star = starType;
-    div.dataset.dateStr = dateStr;
-    div.onclick = () => clickDay(div, dayEvList);
-    calendarEl.appendChild(div);
-  }
-}
-
-function clickDay(el, evList){
-  const y = Number(el.dataset.y);
-  const m = Number(el.dataset.m);
-  const d = Number(el.dataset.d);
-  const lunarText = el.dataset.lunar || "--";
-  const starText = el.dataset.star || "无星日期";
-  const dateStr = el.dataset.dateStr;
-
-  selectItem = { y, m, d, lunar: lunarText };
-  const weekArr = ["日","一","二","三","四","五","六"];
-  const w = new Date(y, m - 1, d).getDay();
-
-  infoCard.style.display = "block";
-
-  let detailHtml = "";
-  if(evList.length === 0){
-    detailHtml = "<div>当日暂无宴席预定</div>";
-  }else{
-    evList.forEach(ev => {
-      detailHtml += `
-      <div class="detail-item">
-        <div>🏢门店：${ev.shop || "未填写"}</div>
-        <div>🏨宴会厅：${ev.hall || "未填写"}</div>
-        <div>👤客户|宴会主题：${ev.customer || "未填写"}</div>
-        <div>🪑桌数：${ev.table || "未填写"}</div>
-        <div>👔销售负责人：${ev.sales || ""}</div>
-        <div>📋预定情况：${ev.title || ""}</div>
-      </div>
-      `;
-    });
-  }
-
-  infoText.innerHTML = `
-    <div>公历：${y}-${m}-${d} 星期${weekArr[w]}</div>
-    <div>农历：${lunarText}</div>
-    <div>星日期：${starText}</div>
-    <div style="margin:8px 0 4px 0;font-weight:bold">宴席详情（共${evList.length}场）</div>
-    ${detailHtml}
-  `;
-  renderCalendar();
-}
-
-// 切换月份逻辑
-function goPrevMonth(){
-  if(loading) return;
-  currentMonth--;
-  if(currentMonth < 1){ currentMonth = 12; currentYear--; }
-  selectItem = null;
-  infoCard.style.display = "none";
-  renderCalendar();
-}
-function goNextMonth(){
-  if(loading) return;
-  currentMonth++;
-  if(currentMonth > 12){ currentMonth = 1; currentYear++; }
-  selectItem = null;
-  infoCard.style.display = "none";
-  renderCalendar();
-}
-
-function bindEvent(){
-  $("#prev").onclick = goPrevMonth;
-  $("#next").onclick = goNextMonth;
-
-  $("#refresh").onclick = async () => {
-    await loadFeishuJson(true);
-  };
-
-  const themeBtn = $("#themeBtn");
-  themeBtn.onclick = () => {
-    const html = document.documentElement;
-    html.hasAttribute("data-theme") ? (html.removeAttribute("data-theme"), themeBtn.innerText = "切换深色") : (html.setAttribute("data-theme", "dark"), themeBtn.innerText = "切换浅色");
-  };
-
-  // 宴会厅下拉点击展开收起
-  const hallBtn = $("#hallSelectBtn");
-  const hallDropdown = $("#hallDropdown");
-  hallBtn.onclick = (e)=>{
-    e.stopPropagation();
-    hallDropdown.classList.toggle("show");
-  };
-  // 点击页面任意地方关闭下拉
-  document.body.addEventListener("click",()=>{
-    hallDropdown.classList.remove("show");
-  });
-
-  // 手机左右滑动
-  calendarEl.addEventListener('touchstart', (e)=>{
-    touchStartX = e.changedTouches[0].screenX;
-  },{passive:true});
-  calendarEl.addEventListener('touchend', (e)=>{
-    touchEndX = e.changedTouches[0].screenX;
-    const diff = touchEndX - touchStartX;
-    // 滑动阈值大于50px才触发
-    if(Math.abs(diff) > 50){
-      if(diff < 0){
-        // 向左滑 -> 下月
-        goNextMonth();
-      }else{
-        // 向右滑 -> 上月
-        goPrevMonth();
-      }
-    }
-  },{passive:true});
-}
-
-init();
-</script>
-
-</body>
-</html>
+  currentMonth = now.getMonth() + 
