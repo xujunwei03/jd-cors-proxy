@@ -243,18 +243,14 @@ const FESHU_JSON_URL = "./feishu_data.json";
 const LOCAL_STORAGE_KEY = "feishu_banquet_cache";
 const CACHE_TTL = 5 * 60 * 1000;
 
-// ========== 门店‑宴会厅映射（严格按你提供的厅名） ==========
-const SHOP_HALL_MAP = {
-  "阳光店": [
-    "星晴厅","星尚厅","星诺厅","星漫厅","星彩厅","星恋厅","星蓉厅","星逸厅","星缘厅"
-  ],
-  "华耀城店": [
-    "星光厅","星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅","衡山厅","南岳厅","星仪厅"
-  ],
-  "君雅店": [
-    "星河厅","星眸厅","星斓厅","星璨厅","星恒厅","星境厅","星喜厅","星享厅","星仪厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
-  ]
-};
+// ========== 宴会厅完整列表（自动去重） ==========
+const HALL_RAW_LIST = [
+  "星恋厅","星缘厅","星恋厅","星缘厅","星诺厅","星彩厅","星尚厅","星漫厅","星光厅",
+  "星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅",
+  "衡山厅","南岳厅","星仪厅","星河厅","星眸厅","星斓厅","星璨厅","星恒厅",
+  "星境厅","星喜厅","星享厅","星仪厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
+];
+const HALL_LIST = [...new Set(HALL_RAW_LIST)]; //去重后宴会厅数组
 
 let starDateMap = {};    // key:公历日期 -> value:星类型
 let starLunarMap = {};   // key:公历日期 -> value:农历显示文本（来自star.xlsx）
@@ -438,10 +434,8 @@ function renderShopFilterButtons(){
   if(currentShopFilter===null) btnAll.classList.add("active");
   btnAll.onclick = ()=>{
     currentShopFilter = null;
-    selectedHallList = [];
     applyShopFilter();
     renderShopFilterButtons();
-    renderHallDropdown();
     renderCalendar();
   };
   bar.appendChild(btnAll);
@@ -452,55 +446,25 @@ function renderShopFilterButtons(){
     if(currentShopFilter === shopName) btn.classList.add("active");
     btn.onclick = ()=>{
       currentShopFilter = shopName;
-      selectedHallList = [];
       applyShopFilter();
       renderShopFilterButtons();
-      renderHallDropdown();
       renderCalendar();
     };
     bar.appendChild(btn);
   });
 }
 
-// ========== 渲染宴会厅多选下拉框（跟随门店筛选展示对应厅） ==========
+// ========== 渲染宴会厅多选下拉框 ==========
 function renderHallDropdown(){
   const dropdown = document.getElementById("hallDropdown");
   const btn = document.getElementById("hallSelectBtn");
   dropdown.innerHTML = "";
 
-  // 获取当前应当展示的宴会厅列表
-  let showHallList = [];
-  if(currentShopFilter === null){
-    // 全部门店，收集全部厅
-    const allSet = new Set();
-    Object.values(SHOP_HALL_MAP).forEach(arr=>arr.forEach(h=>allSet.add(h)));
-    showHallList = Array.from(allSet);
-  }else{
-    // 指定门店，取该门店厅
-    if(SHOP_HALL_MAP[currentShopFilter]){
-      showHallList = SHOP_HALL_MAP[currentShopFilter];
-    }
-  }
-
-  // 【全选】按钮
-  const selectAllDiv = document.createElement("div");
-  selectAllDiv.className = "hall-item";
-  selectAllDiv.innerHTML = `<input type="checkbox"> <span>【全选】</span>`;
-  selectAllDiv.onclick = (e)=>{
-    e.stopPropagation();
-    selectedHallList = [...showHallList];
-    renderHallDropdown();
-    applyShopFilter();
-    renderCalendar();
-  };
-  dropdown.appendChild(selectAllDiv);
-
-  // 【清空全部选择】按钮
+  // 全选/清空按钮
   const clearAllDiv = document.createElement("div");
   clearAllDiv.className = "hall-item";
   clearAllDiv.innerHTML = `<input type="checkbox"> <span>【清空全部选择】</span>`;
-  clearAllDiv.onclick = (e)=>{
-    e.stopPropagation();
+  clearAllDiv.onclick = ()=>{
     selectedHallList = [];
     renderHallDropdown();
     applyShopFilter();
@@ -508,7 +472,7 @@ function renderHallDropdown(){
   };
   dropdown.appendChild(clearAllDiv);
 
-  showHallList.forEach(hallName=>{
+  HALL_LIST.forEach(hallName=>{
     const div = document.createElement("div");
     div.className = "hall-item";
     const checked = selectedHallList.includes(hallName);
@@ -678,6 +642,9 @@ const ymEl = $("#ym");
 const infoCard = $("#infoCard");
 const infoText = $("#infoText");
 
+// 滑动手势变量
+let touchStartX = 0;
+let touchEndX = 0;
 
 async function init(){
   const now = new Date();
@@ -886,7 +853,24 @@ function bindEvent(){
     hallDropdown.classList.remove("show");
   });
 
-  // ========= 已删除手机touch滑动切换月份代码 =========
+  // 手机左右滑动
+  calendarEl.addEventListener('touchstart', (e)=>{
+    touchStartX = e.changedTouches[0].screenX;
+  },{passive:true});
+  calendarEl.addEventListener('touchend', (e)=>{
+    touchEndX = e.changedTouches[0].screenX;
+    const diff = touchEndX - touchStartX;
+    // 滑动阈值大于50px才触发
+    if(Math.abs(diff) > 50){
+      if(diff < 0){
+        // 向左滑 -> 下月
+        goNextMonth();
+      }else{
+        // 向右滑 -> 上月
+        goPrevMonth();
+      }
+    }
+  },{passive:true});
 }
 
 init();
