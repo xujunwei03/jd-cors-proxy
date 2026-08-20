@@ -16,7 +16,9 @@ KEY_BANQUET_HALL = "宴会厅"
 KEY_THEME = "客户|宴会主题"
 KEY_SALES = "销售负责人"
 KEY_TABLE_NUM = "桌数"
-KEY_SHOP = "门店"   # 新增门店字段，和飞书多维表显示名字完全一致
+KEY_SHOP = "门店"
+KEY_PARTY_TYPE = "宴会类型"    #新增
+KEY_PARTY_TIME_SLOT = "宴会时段" #新增
 # ========================================================
 
 # 东八区 8小时，单位毫秒
@@ -65,6 +67,8 @@ def transform(records):
             print("宴会日期原始值:", f.get(KEY_DATE))
             print("宴会厅原始值:", f.get(KEY_BANQUET_HALL))
             print("门店原始值:", f.get(KEY_SHOP))
+            print("宴会类型原始值:", f.get(KEY_PARTY_TYPE))
+            print("宴会时段原始值:", f.get(KEY_PARTY_TIME_SLOT))
 
         raw_date = f.get(KEY_DATE)
         party_date = None
@@ -85,8 +89,10 @@ def transform(records):
 
         banquect_hall_val = f.get(KEY_BANQUET_HALL)
         shop_val = f.get(KEY_SHOP)
+        party_type_val = f.get(KEY_PARTY_TYPE)
+        party_time_slot_val = f.get(KEY_PARTY_TIME_SLOT)
 
-        # 过滤：宴会日期为空 或者 宴会厅为空/None，都跳过不导出；门店允许为空
+        # 过滤：宴会日期为空 或者 宴会厅为空/None，都跳过不导出；门店、宴会类型、宴会时段允许为空
         if (party_date is None or party_date == "") or (banquect_hall_val is None or str(banquect_hall_val).strip() == ""):
             skip_count += 1
             continue
@@ -97,6 +103,8 @@ def transform(records):
             "预定情况": f.get(KEY_STATUS),
             "宴会厅": banquect_hall_val,
             "门店": shop_val,
+            "宴会类型": party_type_val,
+            "宴会时段": party_time_slot_val,
             "客户|宴会主题": f.get(KEY_THEME),
             "销售负责人": f.get(KEY_SALES),
             "桌数": f.get(KEY_TABLE_NUM)
