@@ -114,11 +114,11 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
 }
 .hall-empty-text{
   font-size:10px;
-  color:#888;
+  color:#ff2222;  /* 修改：宴会厅空行文字红色 */
   line-height:1.1;
 }
 
-#calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;touch-action:pan-y;}
+#calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
 /*星期头部*/
 .week-header{
   display:grid;
@@ -243,14 +243,25 @@ const FESHU_JSON_URL = "./feishu_data.json";
 const LOCAL_STORAGE_KEY = "feishu_banquet_cache";
 const CACHE_TTL = 5 * 60 * 1000;
 
-// ========== 宴会厅完整列表（自动去重） ==========
-const HALL_RAW_LIST = [
-  "星恋厅","星缘厅","星恋厅","星缘厅","星诺厅","星彩厅","星尚厅","星漫厅","星光厅",
-  "星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅",
+// ==========【门店对应宴会厅映射】==========
+const SHOP_HALL_MAP = {
+  "阳光店": [
+    "星晴厅","星尚厅","星诺厅","星漫厅","星彩厅","星恋厅","星蓉厅","星逸厅","星缘厅"
+  ],
+  "华耀城店": [
+    "星光厅","星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅","衡山厅","南岳厅","星仪厅"
+  ],
+  "君雅店": [
+    "星河厅","星眸厅","星斓厅","星璨厅","星恒厅","星境厅","星喜厅","星享厅","星仪厅","星境 A 厅","星璨 A 厅","星璨 A 厅 6 楼休闲区"
+  ]
+};
+// 全部宴会厅集合
+const ALL_HALL_LIST = [
+  "星晴厅","星尚厅","星诺厅","星漫厅","星彩厅","星恋厅","星蓉厅","星逸厅","星缘厅",
+  "星光厅","星月厅","星耀厅","星海厅","星梦厅","星辰厅","星语厅","星云厅","星辰前厅",
   "衡山厅","南岳厅","星仪厅","星河厅","星眸厅","星斓厅","星璨厅","星恒厅",
-  "星境厅","星喜厅","星享厅","星仪厅","星境A厅","星璨A厅","星璨A厅6楼休闲区"
+  "星境厅","星喜厅","星享厅","星境 A 厅","星璨 A 厅","星璨 A 厅 6 楼休闲区"
 ];
-const HALL_LIST = [...new Set(HALL_RAW_LIST)]; //去重后宴会厅数组
 
 let starDateMap = {};    // key:公历日期 -> value:星类型
 let starLunarMap = {};   // key:公历日期 -> value:农历显示文本（来自star.xlsx）
@@ -274,7 +285,7 @@ const lunarDayCn = [
  * - 如果是数字或对象，做兼容处理
  */
 function formatLunarDisplay(rawVal){
-  if(rawVal === null || rawVal === undefined || rawVal === "") return "--";
+  if(rawVal === null || rawVal === undefined || rawVal === "") return "";
   // 已经是字符串，直接展示
   if(typeof rawVal === "string") return rawVal.trim();
   // 对象格式 {lunarMonthStr,lunarDayStr,isLeap} 兼容
@@ -434,8 +445,10 @@ function renderShopFilterButtons(){
   if(currentShopFilter===null) btnAll.classList.add("active");
   btnAll.onclick = ()=>{
     currentShopFilter = null;
+    selectedHallList = []; //切换门店清空宴会厅选中
     applyShopFilter();
     renderShopFilterButtons();
+    renderHallDropdown();
     renderCalendar();
   };
   bar.appendChild(btnAll);
@@ -446,8 +459,10 @@ function renderShopFilterButtons(){
     if(currentShopFilter === shopName) btn.classList.add("active");
     btn.onclick = ()=>{
       currentShopFilter = shopName;
+      selectedHallList = []; //切换门店清空宴会厅选中
       applyShopFilter();
       renderShopFilterButtons();
+      renderHallDropdown();
       renderCalendar();
     };
     bar.appendChild(btn);
@@ -460,7 +475,28 @@ function renderHallDropdown(){
   const btn = document.getElementById("hallSelectBtn");
   dropdown.innerHTML = "";
 
-  // 全选/清空按钮
+  // 根据当前门店筛选得到可用宴会厅列表
+  let showHallList;
+  if(currentShopFilter === null){
+    showHallList = [...ALL_HALL_LIST];
+  }else{
+    showHallList = SHOP_HALL_MAP[currentShopFilter] || [];
+  }
+
+  // 【全选】按钮
+  const selectAllDiv = document.createElement("div");
+  selectAllDiv.className = "hall-item";
+  selectAllDiv.innerHTML = `<input type="checkbox"> <span>【全选】</span>`;
+  selectAllDiv.onclick = (ev)=>{
+    ev.stopPropagation();
+    selectedHallList = [...showHallList];
+    renderHallDropdown();
+    applyShopFilter();
+    renderCalendar();
+  };
+  dropdown.appendChild(selectAllDiv);
+
+  // 清空全部选择按钮
   const clearAllDiv = document.createElement("div");
   clearAllDiv.className = "hall-item";
   clearAllDiv.innerHTML = `<input type="checkbox"> <span>【清空全部选择】</span>`;
@@ -472,7 +508,7 @@ function renderHallDropdown(){
   };
   dropdown.appendChild(clearAllDiv);
 
-  HALL_LIST.forEach(hallName=>{
+  showHallList.forEach(hallName=>{
     const div = document.createElement("div");
     div.className = "hall-item";
     const checked = selectedHallList.includes(hallName);
@@ -559,9 +595,10 @@ async function loadStarExcel() {
       statusEl.style.color = "#d92121";
     }
     if(lunarStatusEl){
-      lunarStatusEl.innerText = "❌农历加载失败，请确认star.xlsx农历列配置";
+      lunarStatusEl.innerText = "⚠️star.xlsx读取失败，无农历/星日期";
       lunarStatusEl.style.color = "#d92121";
     }
+    // 就算读取失败，也不要置空，保留空对象，日历依然可以渲染公历
     return false;
   }
 }
@@ -642,9 +679,6 @@ const ymEl = $("#ym");
 const infoCard = $("#infoCard");
 const infoText = $("#infoText");
 
-// 滑动手势变量
-let touchStartX = 0;
-let touchEndX = 0;
 
 async function init(){
   const now = new Date();
@@ -801,7 +835,7 @@ function clickDay(el, evList){
 
   infoText.innerHTML = `
     <div>公历：${y}-${m}-${d} 星期${weekArr[w]}</div>
-    <div>农历：${lunarText}</div>
+    <div>农历：${lunarText || "无"}</div>
     <div>星日期：${starText}</div>
     <div style="margin:8px 0 4px 0;font-weight:bold">宴席详情（共${evList.length}场）</div>
     ${detailHtml}
@@ -853,24 +887,7 @@ function bindEvent(){
     hallDropdown.classList.remove("show");
   });
 
-  // 手机左右滑动
-  calendarEl.addEventListener('touchstart', (e)=>{
-    touchStartX = e.changedTouches[0].screenX;
-  },{passive:true});
-  calendarEl.addEventListener('touchend', (e)=>{
-    touchEndX = e.changedTouches[0].screenX;
-    const diff = touchEndX - touchStartX;
-    // 滑动阈值大于50px才触发
-    if(Math.abs(diff) > 50){
-      if(diff < 0){
-        // 向左滑 -> 下月
-        goNextMonth();
-      }else{
-        // 向右滑 -> 上月
-        goPrevMonth();
-      }
-    }
-  },{passive:true});
+  // ====【已删除手机左右滑动切换月份代码】====
 }
 
 init();
