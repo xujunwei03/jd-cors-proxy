@@ -65,7 +65,7 @@ body{background:var(--bg);color:var(--text);padding:8px;max-width:1400px;margin:
   display:block;
 }
 
-/* 头部控制栏布局 */
+/* 头部年月行 */
 .header-wrap{
   display:flex;
   align-items:center;
@@ -88,23 +88,40 @@ body{background:var(--bg);color:var(--text);padding:8px;max-width:1400px;margin:
   font-size:18px;
   user-select:none;
 }
-.ctrl-bar{display:flex;gap:6px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;}
-button{padding:5px 10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:4px;cursor:pointer;font-size:14px;}
-button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
 
-#shopFilterBar{
+/* ==========【重点修改：控制栏整行布局，一行放门店｜宴会厅｜操作按钮】 ========== */
+.top-filter-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:10px;
+  border:1px solid var(--border);
+  padding:8px 12px;
+  border-radius:6px;
+}
+.shop-filter-area{
   display:flex;
   gap:6px;
   flex-wrap:wrap;
-  justify-content:center;
-  margin-bottom:8px;
 }
+.hall-filter-area{
+  display:flex;
+}
+.btn-ctrl-area{
+  display:flex;
+  gap:6px;
+}
+
+button{padding:5px 10px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:4px;cursor:pointer;font-size:14px;}
+button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
+
 
 /* ========== 新增宴会厅多选下拉样式 ========== */
 .hall-filter-wrap{
   position:relative;
   display:inline-block;
-  margin:0 4px 8px;
 }
 #hallSelectBtn{
   padding:5px 10px;
@@ -292,21 +309,22 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
 }
 
 /*手机小屏幕进一步压缩*/
+@media (max-width:768px){
+  .top-filter-bar{
+    flex-direction:column;
+    align-items:flex-start;
+  }
+}
 @media (max-width:480px){
   body{padding:4px;}
   #ym{font-size:18px;margin-bottom:0;}
   .icon-btn{width:30px;height:30px;font-size:16px;}
-  .ctrl-bar button{padding:4px 7px;font-size:13px;}
-  #calendar{gap:2px;}
-  .week-header{gap:2px;margin-bottom:3px;}
-  .week-header>div{font-size:11px;padding:3px 0;}
   .day-item{min-height:66px;padding:2px;}
   .solar{font-size:14px;}
   .lunar{font-size:9px;}
   .festival,.lunar-festival,.solar-term,.star-tag{font-size:9px;}
   .ev-badge{font-size:9px;min-width:12px;}
   .status-line{font-size:11px;}
-  #shopFilterBar button{font-size:12px;padding:3px 6px;}
   .hall-dropdown{min-width:180px;}
   .hall-empty-text{font-size:9px;}
   .tab-item{padding:6px 10px;font-size:14px;}
@@ -329,16 +347,20 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   <div id="ym"></div>
   <div class="icon-btn" id="next">▶</div>
 </div>
-<div class="ctrl-bar">
-  <button id="refresh">刷新数据</button>
-  <button id="themeBtn">切换深色</button>
-</div>
-<div id="shopFilterBar"></div>
 
-<!-- ========== 新增宴会厅多选下拉UI ========== -->
-<div class="hall-filter-wrap">
-  <button id="hallSelectBtn">选择宴会厅 ▾</button>
-  <div class="hall-dropdown" id="hallDropdown"></div>
+<!-- ==========【修改：把门店、宴会厅、刷新、切换深色全部放到这一行容器】 ========== -->
+<div class="top-filter-bar">
+  <div class="shop-filter-area" id="shopFilterBar"></div>
+  <div class="hall-filter-area">
+    <div class="hall-filter-wrap">
+      <button id="hallSelectBtn">选择宴会厅 ▾</button>
+      <div class="hall-dropdown" id="hallDropdown"></div>
+    </div>
+  </div>
+  <div class="btn-ctrl-area">
+    <button id="refresh">刷新数据</button>
+    <button id="themeBtn">切换深色</button>
+  </div>
 </div>
 
 <!-- ==========标签页1：日场地【原有农历日历】 ========== -->
