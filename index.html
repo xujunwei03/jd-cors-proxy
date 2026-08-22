@@ -861,6 +861,7 @@ async function init(){
   }
 
   bindEvent();
+  bindTabEvent();
   renderHallDropdown();
 
   // 只加载star.xlsx（含农历）和宴席数据
@@ -1163,4 +1164,16 @@ function bindEvent(){
   const hallDropdown = $("#hallDropdown");
   hallBtn.onclick = (e)=>{
     e.stopPropagation();
-    hall
+    hallDropdown.classList.toggle("show");
+  };
+  // 点击页面任意位置关闭下拉
+  document.addEventListener("click",()=>{
+    hallDropdown.classList.remove("show");
+  })
+}
+
+//页面加载完成执行初始化
+window.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
