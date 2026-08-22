@@ -310,9 +310,20 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
 
 /*手机小屏幕进一步压缩*/
 @media (max-width:768px){
+  /* 移除flex-direction:column，手机也保持横向，空间不够自动换行 */
   .top-filter-bar{
-    flex-direction:column;
-    align-items:flex-start;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  /* 按钮缩小，适配手机 */
+  .top-filter-bar button{
+    font-size:12px;
+    padding:4px 6px;
+  }
+  #hallSelectBtn{
+    font-size:12px;
+    padding:4px 6px;
+    min-width:110px;
   }
 }
 @media (max-width:480px){
@@ -330,6 +341,15 @@ button.active{background:#2b7cd3;color:#fff;border-color:#2b7cd3;}
   .tab-item{padding:6px 10px;font-size:14px;}
   .status-wrap{
     max-width:240px;
+  }
+  /*超小屏继续缩小按钮*/
+  .top-filter-bar button{
+    font-size:11px;
+    padding:3px 4px;
+  }
+  #hallSelectBtn{
+    min-width:90px;
+    font-size:11px;
   }
 }
 </style>
