@@ -1190,7 +1190,7 @@ function renderMonthTable(){
         td.innerHTML = innerHtml;
       }else{
         // 无预定：显示【空】，点击弹窗查看空闲日期
-        td.innerHTML = `<div class="month-cell-empty">空</div>`;
+        td.innerHTML = `<div class="month-cell-empty"></div>`;
         td.onclick = function(){
           showHallDayAlert(hallName,currentYear,currentMonth);
         }
