@@ -630,9 +630,19 @@ function getHallBookAndFreeDays(y,m,hallName,monthEvList){
 function showHallDayAlert(hallName,y,m){
   const monthEv = getMonthEventFromCache(y,m);
   const {bookDays,freeDays} = getHallBookAndFreeDays(y,m,hallName,monthEv);
+  const weekArr = ["周日","周一","周二","周三","周四","周五","周六"];
+  // 给日期数组每一项拼接星期
+  const bookDaysWithWeek = bookDays.map(ds=>{
+    const d = new Date(ds);
+    return `${ds} (${weekArr[d.getDay()]})`;
+  });
+  const freeDaysWithWeek = freeDays.map(ds=>{
+    const d = new Date(ds);
+    return `${ds} (${weekArr[d.getDay()]})`;
+  });
   let msg = `【${hallName}】${y}年${m}月\n`;
-  msg += `✅本月预定共${bookDays.length}场\n预定日期：\n${bookDays.join("\n")||"无"}\n\n`;
-  msg += `⭕本月空闲（未预定）共${freeDays.length}天\n空闲日期：\n${freeDays.join("\n")||"全部已排满"}`;
+  msg += `✅本月预定共${bookDays.length}场\n预定日期：\n${bookDaysWithWeek.join("\n")||"无"}\n\n`;
+  msg += `⭕本月空闲（未预定）共${freeDays.length}天\n空闲日期：\n${freeDaysWithWeek.join("\n")||"全部已排满"}`;
   alert(msg);
 }
 // 动态渲染门店筛选按钮
